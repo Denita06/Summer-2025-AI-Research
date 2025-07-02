@@ -1,6 +1,7 @@
 import requests
-import gradio as gr
+import gradio as gr #creats web interface
 
+# chatbot function that processes user inputs and calls the DeepSeek model
 def ask_chatbot(age, gender, symptoms, other_symptom, question):
     if age < 18:
         return "Sorry, this chatbot is only for users 18 and older."
@@ -30,22 +31,27 @@ def ask_chatbot(age, gender, symptoms, other_symptom, question):
         return f"Error contacting Deepseek model: {e}"
 
 
-
+# Builds the Gradio user interface
 with gr.Blocks(title="AI Medical Assistant Chatbot (DeepSeek)") as demo:
     gr.Markdown("### AI Medical Assistant Chatbot (DeepSeek)")
 
+    # Input for user's age (must be >= 18)
     age_input = gr.Number(label="Your Age", minimum=18, value=18)
     gender_input = gr.Radio(["Male", "Female"], label="Your Gender")
 
+    # Checkbox to allow user to select multiple symptoms if needed
     symptom_input = gr.CheckboxGroup(
         ["Fever","Cough","Headache","Fatigue","Rash","Other"],
         label="Select Symptoms"
     )
 
+    # If the user selects 'other' in the symptoms list, they have the option to describe their symptoms
     other_symptom_input = gr.Textbox(label="Describe other symptoms", visible=False)
     question_input = gr.Textbox(label="Your Question")
+    # Textbox to display chatbot's response
     output = gr.Textbox(label="Chatbot Response")
 
+    # if "Other" in symptoms is checked, then a textbox will appear
     def show_other_symptom(symptoms):
         return gr.update(visible="Other" in symptoms)
 
@@ -55,6 +61,7 @@ with gr.Blocks(title="AI Medical Assistant Chatbot (DeepSeek)") as demo:
         outputs=other_symptom_input
     )
 
+    # Submit Button
     submit_button = gr.Button("Submit")
     submit_button.click(
         ask_chatbot,
