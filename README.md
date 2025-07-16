@@ -1,8 +1,11 @@
+
 # Summer 2025 AI Research Project
 ## AI Medical Assistant Chatbot (using DeepSeek)
 
 ### **Project Overview**
 This project implements **MedBot**, and AI-powered medical assistant chatbot designed to provide medically relevant information based on user symptoms and questions. The chatbot integrates the **DeepSeek-R1 model** for natural language processing (NLP) and uses the **MedQuAD dataset** for accurate and reliable responses.
+
+![MedBot Logo](logo/medbot-logo.png)
 
 ---
 
