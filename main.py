@@ -8,17 +8,43 @@ from medquad_loader import load_medquad, retrieve_relevant_answers
 # Load MedQuAD data at startup
 medquad_df = load_medquad("Kaggle - MedQuAD/medquad.csv")
 
+# Get nearby healthcare providers using OpenStreetMap Nomination API
+def get_healthcare_providers(city, max_results=5):
+    facility_types = {"hospital", "clinic", "urgent care", "doctor office", "pharmacy"}
+    headers = {"User-Agent": "AI-Medical-Chatbot"}
+    providers = []
+
+    for facility in facility_types:
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            "q": f"{facility} in {city}",
+            "format": "json",
+            "limit": max_results
+        }
+
+        try:
+            response = requests.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+
+            for place in data:
+                name = place.get("display_name")
+                if name not in providers:
+                    providers.append(name)
+        except Exception as e:
+            print(f"Error getting {facility}: {e}")
+    return providers
+
 # chatbot function that processes user inputs and calls the DeepSeek model
-def ask_chatbot(history, age, gender, symptoms, other_symptom, question):
+def ask_chatbot(history, age, gender, symptoms, other_symptom, question, city):
     if age < 18:
         history.append({"role": "assistant", "content": "Sorry, this chatbot is only for users 18 and older."})
-        return history, history
+        return history, history, ""
 
     if "Other" in symptoms and other_symptom:
         symptoms.append(other_symptom)
 
     symptoms_str = ", ".join(symptoms)
-
     query_text = question + "" + symptoms_str
 
     relevant_answers = retrieve_relevant_answers(medquad_df, query_text, symptoms)
@@ -36,8 +62,7 @@ def ask_chatbot(history, age, gender, symptoms, other_symptom, question):
         "If the information does the answer their question, reply: 'I could not find a specific answer to your question in the MedQuAD dataset."
         "Please think step by step to arrive at the best answer internally. "
         "Do not show your internal reasoning or thought process. "
-        "Speak directly to the user in your response."
-        "Only output the final clear, concise, and helpful medical advice for the user."
+        "Speak directly to the user in your response with detailed, clear, and actionable medical advice including possible causes, what they can do today, and when to see a doctor."
     )
 
     url = "http://localhost:11434/api/generate"
@@ -72,23 +97,35 @@ def ask_chatbot(history, age, gender, symptoms, other_symptom, question):
     except Exception as e:
         bot_reply = f"Error contacting Deepseek model: {e}"
 
+    providers_text = ""
+    if city.strip():
+        providers = get_healthcare_providers(city)
+        if providers:
+            providers_text = "\n\n**Nearby healthcare providers based on your city:**\n"
+            for i, p in enumerate(providers, 1):
+                providers_text += f"{i}. {p}\n"
+        else:
+            providers_text = "\n\n**Nearby Healthcare Providers:**\nSorry, no nearby healthcare providers could be found for your city."
+
+    final_reply = f"{bot_reply}{providers_text}"
+
     history.append({"role": "user", "content": question})
-    history.append({"role": "assistant", "content": bot_reply})
+    history.append({"role": "assistant", "content": final_reply})
     return history, history, ""
 
 
 # Builds the Gradio user interface
 if __name__ == "__main__":
     with gr.Blocks(title="AI Medical Assistant Chatbot (DeepSeek)") as demo:
-        gr.Markdown("### AI Medical Assistant Chatbot (DeepSeek)")
 
         chatbot = gr.Chatbot(label="AI Medical Assistant Chatbot", type="messages")
         state = gr.State([]) # stores conversation history
 
         # Input for user's age (must be >= 18)
         with gr.Row():
-            age_input = gr.Number(label="Your Age", minimum=18, value=18)
+            age_input = gr.Number(label="Your Age (18+)", minimum=18, value=18)
             gender_input = gr.Radio(["Male", "Female"], label="Your Gender")
+            city_input = gr.Textbox(label="Your City", placeholder="Enter your city or location")
 
         # Checkbox to allow user to select multiple symptoms if needed
         symptom_input = gr.CheckboxGroup(
@@ -114,7 +151,7 @@ if __name__ == "__main__":
         submit_button = gr.Button("Submit")
         submit_button.click(
             ask_chatbot,
-            inputs=[state, age_input, gender_input, symptom_input, other_symptom_input, question_input],
+            inputs=[state, age_input, gender_input, symptom_input, other_symptom_input, question_input, city_input],
             outputs=[chatbot, state, question_input]
         )
 
